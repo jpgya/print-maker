@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ワークからランダムテスト</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<style>
+:root{--blue:#3659d9;--navy:#17264b;--bg:#f4f6fb;--line:#e1e6f0;--muted:#667085}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#182033;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+header{background:linear-gradient(120deg,#182b69,#5475ed);color:white;padding:27px 18px}
+.wrap{max-width:1100px;margin:auto;padding:0 18px}h1{font-size:clamp(23px,4vw,34px);margin:0 0 7px}header p{margin:0;color:#e3e9ff}
+main{padding:22px 0 55px}.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.step{background:white;border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:13px;font-weight:700;color:#59647a}
+.step b{color:var(--blue);margin-right:5px}.grid{display:grid;gap:15px}.panel{background:white;border:1px solid var(--line);border-radius:17px;padding:18px;box-shadow:0 8px 25px #1c2d5010}
+h2{font-size:18px;margin:0 0 12px}.desc{font-size:13px;line-height:1.7;color:var(--muted);margin:0 0 12px}
+.drop{display:block;border:2px dashed #aebce8;border-radius:14px;background:#f9faff;padding:25px;text-align:center;cursor:pointer}
+.drop strong{display:block;font-size:16px}.drop input{display:none}
+.btn{border:0;border-radius:11px;padding:11px 15px;font-weight:750;background:var(--blue);color:white;cursor:pointer}.btn.alt{background:#edf1f8;color:#34405b}.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.meter{height:8px;background:#edf0f6;border-radius:9px;overflow:hidden;margin:12px 0}.bar{height:100%;width:0;background:var(--blue);transition:width .2s}
+.status{font-size:13px;color:var(--muted);min-height:20px}.thumbs{display:flex;gap:8px;overflow:auto;margin-top:12px}
+.thumb{width:76px;height:76px;flex:none;object-fit:cover;border-radius:9px;border:1px solid var(--line)}
+textarea{width:100%;min-height:260px;padding:13px;border:1px solid var(--line);border-radius:12px;font:14px/1.7 system-ui,sans-serif;resize:vertical}
+label.field{font-size:13px;color:var(--muted);display:block;margin:10px 0 5px}input[type=number]{width:100px;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:15px}
+.stat{display:inline-flex;background:#edf1ff;color:#2d4fc5;padding:6px 10px;border-radius:99px;font-size:12px;font-weight:750}
+.preview{border:1px solid var(--line);border-radius:13px;padding:16px;background:#fff}
+.test-title{text-align:center;font-size:22px;font-weight:800;margin:0 0 7px}.test-meta{display:flex;justify-content:space-between;font-size:12px;color:#555;border-bottom:1px solid #bbb;padding-bottom:10px;margin-bottom:12px}
+.q{padding:11px 0;border-bottom:1px solid #ddd;break-inside:avoid}.q strong{margin-right:7px}.answerline{margin-top:10px;color:#555;letter-spacing:1px}
+.answerkey .q{padding:8px 0}.ans{margin-top:4px;font-weight:700;color:#183c9c}
+.hidden{display:none!important}.small{font-size:12px;color:var(--muted)}
+@media(min-width:850px){.grid{grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}}
+@media print{
+ @page{size:A4;margin:15mm}
+ body{background:white}.no-print,header,.steps{display:none!important}main{padding:0}.wrap{max-width:none;padding:0}
+ .panel{border:0;box-shadow:none;padding:0}.print-area{display:block!important}
+ .test-title{font-size:20pt}.q{font-size:11pt;padding:12px 0}.answerline{margin-top:18px}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>📝 ワークからランダムテスト</h1><p>解き終わったワークを読み込んで、自分だけの復習プリントを作ろう。</p></div></header>
+<main class="wrap">
+<div class="steps no-print"><span class="step"><b>1</b>写真を追加</span><span class="step"><b>2</b>文字を読み取る・整理</span><span class="step"><b>3</b>ランダム出題</span><span class="step"><b>4</b>印刷・PDF保存</span></div>
+<div class="grid no-print">
+<section class="panel">
+<h2>① ワークの写真をアップロード</h2>
+<p class="desc">複数の写真をまとめて選択できます。あとから追加することもできます。ページ数はブラウザや端末の空き容量に左右されます。</p>
+<label class="drop" for="files"><strong>📷 写真を選択・追加</strong><span class="small">JPG / PNG / WEBP など・複数選択OK</span><input id="files" type="file" accept="image/*" multiple></label>
+<div class="row"><span class="stat" id="fileCount">0ページ追加済み</span><button class="btn alt" id="clearFiles">画像をすべて外す</button></div>
+<div class="thumbs" id="thumbs"></div>
+<div class="row"><button class="btn" id="runOCR">アップロード画像を文字認識</button></div>
+<div class="meter"><div class="bar" id="bar"></div></div><div class="status" id="ocrStatus">画像を追加してください。</div>
+<p class="small">※写真はこのブラウザ内で処理します。OCRには初回のみ言語データの読み込みがあり、インターネット接続が必要です。</p>
+</section>
+<section class="panel">
+<h2>② 読み取った文字を問題データに整理</h2>
+<p class="desc">読み取り結果から問題と答えを確認して、1行ずつ <b>問題｜答え</b> の形にしてください。手書きの答え・赤ペン・印刷文字が混ざるため、読み取り後の確認が大切です。</p>
+<textarea id="bank" placeholder="例：&#10;さまざまなものが流れる経路。流通経路。｜チャネル&#10;メーカーが消費者に直接販売すること。｜直接流通&#10;需要と供給で上下する価格。｜需給価格"></textarea>
+<div class="row"><button class="btn alt" id="extract">OCR文章をここに表示</button><button class="btn" id="saveBank">問題データを登録・更新</button></div>
+<div class="status" id="bankStatus">「問題｜答え」の形式で入力するとテストに使えます。</div>
+</section>
+<section class="panel wide">
+<h2>③ ランダムテストを作成</h2>
+<p class="desc">登録した問題から重複なしでランダムに選びます。</p>
+<div class="row"><label>出題数 <input type="number" id="amount" min="1" max="500" value="20"></label><span class="stat" id="bankCount">登録 0問</span><button class="btn" id="generate">ランダムテストを作成</button></div>
+<div class="status" id="generateStatus"></div>
+</section>
+</div>
+<section class="panel print-area" id="printArea">
+<div class="no-print row" style="justify-content:space-between;margin:0 0 14px"><h2 style="margin:0">④ プリント確認</h2><div class="row" style="margin:0"><button class="btn alt" id="printAnswers">解答付きで印刷</button><button class="btn" id="printQuestions">問題プリントを印刷 / PDF保存</button></div></div>
+<div id="paper"><div class="empty small">問題を作成すると、ここにプリントが表示されます。</div></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let files=[],ocrText='',bankItems=[],testItems=[];
+function refreshFiles(){ $('fileCount').textContent=files.length+'ページ追加済み';$('thumbs').innerHTML='';files.forEach(f=>{let im=document.createElement('img');im.className='thumb';im.src=URL.createObjectURL(f);im.title=f.name;$('thumbs').append(im)})}
+$('files').onchange=e=>{files.push(...Array.from(e.target.files));e.target.value='';refreshFiles();$('ocrStatus').textContent=files.length+'ページを読み込み対象にしました。'};
+$('clearFiles').onclick=()=>{files=[];refreshFiles();$('ocrStatus').textContent='画像をすべて外しました。'};
+$('runOCR').onclick=async()=>{if(!files.length){$('ocrStatus').textContent='先に写真を追加してください。';return}if(!window.Tesseract){$('ocrStatus').textContent='OCRライブラリを読み込めません。ネット接続を確認してください。';return}
+$('runOCR').disabled=true;ocrText='';let worker;
+try{worker=await Tesseract.createWorker('jpn',1,{langPath:'https://tessdata.projectnaptha.com/4.0.0',cacheMethod:'write',logger:m=>{
+ const labels={'loading tesseract core':'OCRエンジンを読み込み中…','initializing tesseract':'OCRエンジンを初期化中…','loading language traineddata':'日本語データをダウンロード中…（初回は数分かかる場合があります）','initializing api':'日本語OCRを準備中…','recognizing text':'画像の文字を認識中…'};
+ if(m.status)$('ocrStatus').textContent=labels[m.status]||('処理中：'+m.status);
+ if(m.status==='loading language traineddata'&&m.progress!==undefined)$('bar').style.width=Math.round(m.progress*25)+'%';
+ if(m.status==='recognizing text'&&m.progress!==undefined)$('bar').style.width=Math.round(25+m.progress*75)+'%';
+}});
+for(let i=0;i<files.length;i++){ $('ocrStatus').textContent=`${i+1}/${files.length}ページ目を読み取り中…`;const r=await worker.recognize(files[i]);ocrText+=`\n【${i+1}ページ目】\n`+r.data.text+'\n';$('bar').style.width=Math.round((i+1)/files.length*100)+'%'}
+$('ocrStatus').textContent=files.length+'ページの文字読み取りが完了しました。結果を整理してください。';
+}catch(err){$('ocrStatus').textContent='読み取りエラー：画像を減らすか、明るく正面から撮影した写真で再試行してください。'}
+finally{if(worker)await worker.terminate();$('runOCR').disabled=false}};
+$('extract').onclick=()=>{if(!ocrText){$('bankStatus').textContent='先に画像の文字認識を実行してください。';return}$('bank').value=ocrText;$('bankStatus').textContent='OCR結果を表示しました。各行を「問題｜答え」に整理してください。'};
+function parseBank(){return $('bank').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(line=>{let p=line.split(/[｜|]/);if(p.length<2)return null;let q=p.shift().trim(),a=p.join('｜').trim();return q&&a?{q,a}:null}).filter(Boolean)}
+$('saveBank').onclick=()=>{bankItems=parseBank();$('bankCount').textContent='登録 '+bankItems.length+'問';$('bankStatus').textContent=bankItems.length+'問を登録しました。形式が違う行は読み飛ばされます。'};
+$('generate').onclick=()=>{if(!bankItems.length){bankItems=parseBank();$('bankCount').textContent='登録 '+bankItems.length+'問'}if(!bankItems.length){$('generateStatus').textContent='先に「問題｜答え」の形式で問題データを登録してください。';return}
+let n=Math.max(1,Math.min(500,parseInt($('amount').value)||20));testItems=[...bankItems].sort(()=>Math.random()-.5).slice(0,n);$('generateStatus').textContent=bankItems.length+'問中 '+testItems.length+'問を選びました。';renderPaper(false)};
+function renderPaper(withAnswers){if(!testItems.length)return;let h='<h1 class="test-title">復習テスト</h1><div class="test-meta"><span>氏名：　　　　　　　　　　　　</span><span>日付：　　　月　　　日</span><span>得点：　　　／'+testItems.length+'</span></div>';
+testItems.forEach((x,i)=>{h+=`<div class="q"><strong>問${i+1}.</strong>${esc(x.q)}${withAnswers?`<div class="ans">【答え】${esc(x.a)}</div>`:'<div class="answerline">答え：＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</div>'}</div>`});$('paper').innerHTML=h;$('paper').className=withAnswers?'answerkey':''}
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('printQuestions').onclick=()=>{renderPaper(false);window.print()};$('printAnswers').onclick=()=>{renderPaper(true);window.print()};
+</script></body></html>
