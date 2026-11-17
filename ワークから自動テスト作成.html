@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ワークから自動テスト作成</title>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<style>
+:root{--blue:#3c5de7;--navy:#17275b;--bg:#f4f6fb;--line:#e3e8f1;--muted:#667085}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;color:#182033}
+header{background:linear-gradient(120deg,#17285e,#5676f4);color:white;padding:30px 18px}
+.wrap{max-width:1000px;margin:auto;padding:0 18px}h1{margin:0 0 7px;font-size:clamp(24px,4vw,34px)}header p{margin:0;color:#e3eaff}
+main{padding:24px 0 50px}.panel{background:white;border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 8px 28px #1b2b5010}
+h2{font-size:18px;margin:0 0 12px}.drop{display:block;text-align:center;padding:30px 18px;border:2px dashed #aab9ed;border-radius:15px;background:#fafbff;cursor:pointer}
+.drop b{font-size:17px}.drop small{display:block;color:var(--muted);margin-top:6px}.drop input{display:none}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:13px}
+button{border:0;border-radius:11px;padding:12px 17px;font-weight:750;cursor:pointer}.primary{background:var(--blue);color:white}.secondary{background:#edf1f8;color:#35415a}.primary:disabled{opacity:.5;cursor:wait}
+.pill{display:inline-flex;padding:6px 10px;border-radius:99px;background:#edf1ff;color:#2d4fc5;font-size:12px;font-weight:750}
+.thumbbox{display:flex;gap:8px;overflow:auto;margin-top:12px}.thumb{width:76px;height:76px;object-fit:cover;border:1px solid var(--line);border-radius:9px}
+.status{font-size:13px;color:#4e5a70;line-height:1.7;margin-top:12px;min-height:23px}
+.track{height:9px;border-radius:9px;background:#edf0f6;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:var(--blue);transition:width .25s}
+.hint{font-size:12px;color:var(--muted);line-height:1.7}.settings{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-top:15px}.settings label{font-size:13px;color:#536078}.settings input{width:85px;padding:9px;border:1px solid var(--line);border-radius:9px}
+.result{display:none}.sheet{background:white;padding:20px;border:1px solid var(--line);border-radius:12px}.sheet h2{text-align:center;font-size:22px;margin:0 0 8px}.meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid #aaa;padding-bottom:10px;font-size:12px}.q{padding:12px 0;border-bottom:1px solid #ddd;break-inside:avoid;font-size:14px;line-height:1.7}.answer{margin-top:14px;color:#444}.key{color:#183c9c;font-weight:750;margin-top:5px}.error{color:#b42318}.ok{color:#087443}
+@media(min-width:760px){.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
+@media print{@page{size:A4;margin:15mm}body{background:white}header,.no-print{display:none!important}main{padding:0}.wrap{padding:0}.panel{border:0;box-shadow:none;padding:0}.sheet{border:0;padding:0}.q{font-size:11pt;padding:13px 0}}
+</style></head>
+<body>
+<header><div class="wrap"><h1>📄 ワークから自動テスト作成</h1><p>解き終わったワークを撮ってアップロード。問題プリントを自動生成！</p></div></header>
+<main class="wrap">
+<section class="panel no-print">
+<h2>① ワークの写真をまとめてアップロード</h2>
+<label class="drop" for="photos"><b>📷 写真を選択する</b><small>複数ページを一度に選択できます（JPG / PNG / WEBP）</small><input id="photos" type="file" accept="image/*" multiple></label>
+<div class="row"><span class="pill" id="count">0ページ選択中</span><button class="secondary" id="clear">すべて削除</button></div>
+<div class="thumbbox" id="thumbs"></div>
+<div class="settings"><label>作成する問題数　<input id="number" type="number" min="1" max="100" value="20"> 問</label><label><input id="withAnswers" type="checkbox" checked> 解答欄を付ける</label></div>
+<div class="row"><button class="primary" id="go">✨ 自動でプリントを作成</button></div>
+<div class="track"><div class="bar" id="bar"></div></div><div class="status" id="status">写真を選択して「自動でプリントを作成」を押してください。</div>
+<p class="hint">OCRはParseJetの無料・登録不要枠を利用します。現在公開されている案内ではAPIは1日3リクエストまでです。写真をまとめて1つのPDFにして送信します。画像はOCR処理のため外部サービスへ送信されます。個人情報が写った写真はアップロードしないでください。</p>
+</section>
+<section class="panel result" id="result">
+<div class="row no-print" style="justify-content:space-between;margin:0 0 12px"><h2 style="margin:0">② 完成した問題プリント</h2><div class="row" style="margin:0"><button class="secondary" id="keyBtn">解答を見る</button><button class="primary" id="print">印刷 / PDF保存</button></div></div>
+<div class="sheet" id="sheet"></div>
+<p class="hint no-print">※写真内の手書き回答を完全に読み取れるとは限りません。問題番号・回答欄の形から自動抽出しているため、プリント完成後に内容を確認してください。</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);let photos=[],questions=[],showKey=false;
+$('photos').onchange=e=>{photos.push(...Array.from(e.target.files));e.target.value='';renderPhotos()};
+function renderPhotos(){$('count').textContent=photos.length+'ページ選択中';$('thumbs').innerHTML='';photos.forEach(f=>{let im=document.createElement('img');im.className='thumb';im.src=URL.createObjectURL(f);im.alt=f.name;$('thumbs').append(im)})}
+$('clear').onclick=()=>{photos=[];renderPhotos();$('result').style.display='none';$('status').textContent='写真を選択してください。';$('bar').style.width='0'};
+function progress(v,msg){$('bar').style.width=Math.max(0,Math.min(100,v))+'%';if(msg)$('status').textContent=msg}
+function loadImage(file){return new Promise((resolve,reject)=>{const im=new Image(),url=URL.createObjectURL(file);im.onload=()=>{resolve({im,url})};im.onerror=reject;im.src=url})}
+async function makePdf(){
+ const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+ for(let i=0;i<photos.length;i++){
+  progress(5+i/photos.length*25,`写真をまとめています… ${i+1}/${photos.length}`);
+  const {im,url}=await loadImage(photos[i]);const canvas=document.createElement('canvas');
+  const max=1500,scale=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight));canvas.width=Math.round(im.naturalWidth*scale);canvas.height=Math.round(im.naturalHeight*scale);
+  const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(im,0,0,canvas.width,canvas.height);
+  const data=canvas.toDataURL('image/jpeg',.78);if(i>0)pdf.addPage();const pw=210,ph=297,ratio=Math.min(pw/canvas.width,ph/canvas.height);const w=canvas.width*ratio,h=canvas.height*ratio;pdf.addImage(data,'JPEG',(pw-w)/2,(ph-h)/2,w,h,undefined,'FAST');URL.revokeObjectURL(url);
+ }
+ return pdf.output('blob');
+}
+$('go').onclick=async()=>{
+ if(!photos.length){progress(0,'先に写真を選択してください。');return}
+ if(!window.jspdf){progress(0,'PDFライブラリを読み込めません。ネット接続を確認してください。');return}
+ $('go').disabled=true;$('result').style.display='none';
+ try{
+  const blob=await makePdf();
+  if(blob.size>2*1024*1024)throw new Error('画像をまとめたPDFが2MBを超えました。写真の枚数を減らすか、解像度の低い画像で試してください（無料・未登録APIの制限）。');
+  progress(35,'OCRサービスへ送信中…');
+  const fd=new FormData();fd.append('file',blob,'work-pages.pdf');
+  const res=await fetch('https://api.parsejet.com/v1/parse/auto/file',{method:'POST',body:fd});
+  if(!res.ok){let msg='OCR APIエラー（HTTP '+res.status+'）';try{const e=await res.json();msg=e.message||e.error||msg}catch(_){}throw new Error(msg)}
+  progress(70,'文字認識が完了。問題と回答を抽出しています…');
+  const data=await res.json();const text=data.text||data.markdown||data.content||'';
+  if(!text.trim())throw new Error('OCR結果が空でした。写真を明るく正面から撮り直してください。');
+  questions=extractQuestions(text);
+  if(!questions.length)throw new Error('問題番号と回答を自動判別できませんでした。印刷された問題番号（(1)、1. など）が写るように撮影してください。');
+  const n=Math.max(1,Math.min(100,parseInt($('number').value)||20));
+  questions=shuffle(questions).slice(0,n);showKey=false;renderSheet();
+  $('result').style.display='block';progress(100,`完成！ ${questions.length}問をランダムに選びました。下の「印刷 / PDF保存」から保存できます。`);
+  $('result').scrollIntoView({behavior:'smooth'});
+ }catch(err){progress(0,'作成できませんでした：'+err.message);$('status').classList.add('error')}
+ finally{$('go').disabled=false}
+};
+function extractQuestions(raw){
+ // OCR text may contain numbered worksheet items with a handwritten answer in parentheses.
+ const normalized=raw.replace(/\r/g,'').replace(/[①②③④⑤⑥⑦⑧⑨⑩]/g,m=>'\\n'+(''+('①②③④⑤⑥⑦⑧⑨⑩'.indexOf(m)+1))+'.');
+ const marker=/(?:^|\n)\s*(?:[（(]\s*(\d{1,2})\s*[）)]|(\d{1,2})[.．、])\s*/g;
+ let matches=[...normalized.matchAll(marker)],out=[];
+ for(let i=0;i<matches.length;i++){
+  const start=matches[i].index+matches[i][0].length,end=i+1<matches.length?matches[i+1].index:normalized.length;
+  let chunk=normalized.slice(start,end).replace(/\n+/g,' ').replace(/\s{2,}/g,' ').trim();
+  chunk=chunk.replace(/【\d+ページ目】/g,'').trim();
+  if(chunk.length<8||chunk.length>500)continue;
+  let answer='',ansMatches=[...chunk.matchAll(/[（(]\s*([^（）()]{1,45}?)\s*[）)]/g)];
+  if(ansMatches.length){const a=ansMatches[ansMatches.length-1];answer=a[1].trim();chunk=chunk.slice(0,a.index)+chunk.slice(a.index+a[0].length)}
+  chunk=chunk.replace(/^[\s:：。]+|[\s:：]+$/g,'').replace(/_{2,}/g,'＿＿＿').trim();
+  if(chunk.length<8)continue;
+  if(/次の.{0,20}にあてはまる用語|重要用語の確認|正答数|ページ|第\d+章/.test(chunk))continue;
+  out.push({q:chunk,a:answer});
+ }
+ // Remove obvious duplicates while retaining order.
+ const seen=new Set();return out.filter(x=>{let k=x.q.replace(/\s/g,'');if(seen.has(k))return false;seen.add(k);return true});
+}
+function shuffle(a){let x=[...a];for(let i=x.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]]}return x}
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderSheet(){let h='<h2>復習テスト</h2><div class="meta"><span>氏名：　　　　　　　　　</span><span>日付：　　月　　日</span><span>得点：　　／'+questions.length+'</span></div>';questions.forEach((x,i)=>{h+=`<div class="q"><b>問${i+1}.</b> ${esc(x.q)}`;if(showKey&&x.a)h+=`<div class="key">【読み取った答え】${esc(x.a)}</div>`;else if($('withAnswers').checked)h+='<div class="answer">答え：＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</div>';h+='</div>'});$('sheet').innerHTML=h;$('keyBtn').textContent=showKey?'問題だけに戻す':'解答を見る'}
+$('keyBtn').onclick=()=>{showKey=!showKey;renderSheet()};$('print').onclick=()=>window.print();
+</script></body></html>
